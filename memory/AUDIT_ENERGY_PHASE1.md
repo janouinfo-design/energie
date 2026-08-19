@@ -118,3 +118,29 @@ NON RÉALISÉ (assumé, sans fallback inventé) :
 - SoC/kWh/range EV : techniquement impossible aujourd'hui (aucun capteur configuré) → UNAVAILABLE, pas de fallback.
 - Détection MAPPING_CHANGED (nécessite historique multi-run) : champ prévu, non actif.
 - RBAC/auth utilisateur : non implémenté (tenant_id isolé et appliqué à toutes les requêtes ; RBAC = phase ultérieure).
+
+## 11. PHASE 2.1 — FIABILISATION IDENTITÉ + FAISABILITÉ EV (preuves réelles, backend 71/71, UI 9/9)
+### Propositions de correction Navixy (AUCUNE écriture)
+- Endpoint `GET /api/energy/mapping-proposals`. Classées SAFE_TO_REVIEW / AMBIGUOUS / INSUFFICIENT_DATA.
+- Champs : anomaly, classification, tracker_id, vehicle_id, current_label (contexte seul), vehicle_vin, obd_vin, proposed_match, evidence[], recommended_action, confidence.
+- Résultat réel : 14 propositions, toutes INSUFFICIENT_DATA (car `vehicle.vin` vide partout → aucun match prouvé). JAMAIS de proposition basée sur le label (vérifié par tests). Aucune écriture Navixy.
+
+### Faisabilité EV (evidence-based, modèles réels du compte)
+- Endpoint `GET /api/energy/ev-feasibility`. Familles réelles : fmc130=6, fmb003=4, phone=2.
+- Canaux par métrique : NATIVE/VIA_OBD/VIA_CAN/NEEDS_NAVIXY_CONFIG/NEEDS_TRACKER_CONFIG/NEEDS_HARDWARE/NOT_SUPPORTED/NOT_VERIFIABLE.
+- Conclusion prouvée : SoC EV non collectable aujourd'hui. FMC130 → NEEDS_HARDWARE (adaptateur CAN LV-CAN200/ALL-CAN300 + profil + config Navixy + véhicule dans la liste supportée Teltonika) ; FMB003 → NOT_VERIFIABLE (pas d'adaptateur CAN, dépend de l'OBD véhicule) ; smartphones → NOT_SUPPORTED. Aucun SoC/kWh estimé. Preuves : wiki Teltonika (FMC130_CAN_adapters, CAN_Adapters, OBD_supported_vehicle_list) + datasheet FMB003.
+
+### Historique de mapping + MAPPING_CHANGED (activé)
+- Collections `energy_mapping_history` (tracker_id, vehicle_id, obd_vin, source, confidence, first_seen, last_seen) et `energy_mapping_changes` (audit trail).
+- Détection : NEW_ASSOCIATION / TRACKER_CHANGE / VIN_CHANGE / ASSOCIATION_REMOVED / CONFLICT.
+- Réel : 6 NEW_ASSOCIATION au 1er sync ; 2e sync = 0 nouveau (idempotent, vérifié).
+
+### Readiness (recommandation démarrage A–E)
+- Endpoint `GET /api/energy/readiness`. Résultat : NOT_READY_FOR_A_E.
+- KPIs réels : trackers associés 25.0% · véhicules associés 37.5% · couverture VIN (physiques) 40.0% · énergie thermique 25.0% · énergie EV 0.0% · stale 7 · anomalies bloquantes 0.
+- Raison : <90% de trackers fiablement associés → ne pas démarrer A–E avant fiabilisation identité.
+
+### Fichiers Phase 2.1
+- Backend : energy/ev_feasibility.py, energy/mapping_proposals.py ; extensions energy/{enums,service,routes}.py.
+- Frontend : src/components/EnergyAudit.js (onglets Propositions/Faisabilité EV/Changements + bannière Readiness).
+- Endpoints ajoutés : /api/energy/{mapping-proposals, ev-feasibility, mapping-changes, readiness}.

@@ -213,18 +213,352 @@ backend:
         agent: "testing"
         comment: "All CRITICAL RULES verified across all endpoints: (1) 0 is NEVER used to represent missing data - missing values are null with availability=UNAVAILABLE. (2) STALE metrics are NEVER reported as AVAILABLE. (3) No EV metric (SoC/kWh/battery) is ever MEASURED - all correctly UNAVAILABLE with no sensors. (4) REFERENCE is never labelled MEASURED. All validations passed."
 
+  - task: "Mapping Proposals Endpoint (Phase 2.1)"
+    implemented: true
+    working: true
+    file: "/app/backend/energy/mapping_proposals.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "GET /api/energy/mapping-proposals returns correct structure with {counts, proposals}. All 14 proposals have required fields: anomaly, classification, tracker_id, vehicle_id, current_label, vehicle_vin, obd_vin, proposed_match, evidence, recommended_action, confidence. CRITICAL: NO proposals derived solely from label - all evidence references VIN/vehicle identifiers. Classification counts: INSUFFICIENT_DATA=14 (correct, since vehicle.vin is empty). No SAFE_TO_REVIEW proposals (expected behavior). All validations passed."
+
+  - task: "EV Feasibility Endpoint (Phase 2.1)"
+    implemented: true
+    working: true
+    file: "/app/backend/energy/ev_feasibility.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "GET /api/energy/ev-feasibility returns correct structure with {summary, assessments}. Device families verified: fmc130=6, fmb003=4, phone=2 (exact match). FMC130 trackers: soc channel=NEEDS_HARDWARE, confidence=MEDIUM. FMB003 trackers: soc channel=NOT_VERIFIABLE, confidence=LOW. Phone trackers: soc channel=NOT_SUPPORTED. summary.ev_collectable_now=0 (correct). CRITICAL: No assessment claims metric is NATIVE/available without sensors configured. All validations passed."
+
+  - task: "Mapping Changes Endpoint (Phase 2.1)"
+    implemented: true
+    working: true
+    file: "/app/backend/energy/service.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "GET /api/energy/mapping-changes returns {changes:[...]}. After first sync: 6 NEW_ASSOCIATION change events detected (correct). IDEMPOTENCY TEST PASSED: Second sync produced NO additional changes (count remained 6). No phantom changes when nothing changed. Change tracking working correctly."
+
+  - task: "Readiness Endpoint (Phase 2.1)"
+    implemented: true
+    working: true
+    file: "/app/backend/energy/service.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "GET /api/energy/readiness returns {recommendation, kpis, reasons}. recommendation=NOT_READY_FOR_A_E (correct). All KPIs present: pct_trackers_associated=25.0%, pct_vehicles_associated=37.5%, vin_coverage_physical=40.0%, thermal_energy_coverage=25.0%, ev_energy_coverage=0.0%, stale_trackers=7, blocking_anomalies=0. Reasons provided: 'Only 25.0% of trackers are reliably associated to a vehicle (target >=90%)'. All validations passed."
+
+  - task: "Tenant Isolation - Phase 2.1 Endpoints"
+    implemented: true
+    working: true
+    file: "/app/backend/energy/routes.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Tenant isolation verified for Phase 2.1 endpoints. GET /api/energy/mapping-proposals?tenant_id=paas_NONE returns empty proposals (no leak). GET /api/energy/ev-feasibility?tenant_id=paas_NONE returns empty assessments (no leak). Tenant isolation working correctly across all new endpoints."
+
 frontend:
-  # No frontend testing required for Phase 2 backend
+  - task: "EnergyAudit Component - Page Load & Header"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/components/EnergyAudit.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Header 'LOGITRAK — Énergie · Socle d'audit' renders correctly. Subtitle with description visible. Page loads without errors."
+
+  - task: "Navixy Sync Button & Integration"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/components/EnergyAudit.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Sync button (data-testid='energy-sync-btn') triggers real Navixy sync. Button text changes to 'Synchronisation…' during sync and back to 'Synchroniser Navixy' on completion. Sync completes successfully in ~3-5 seconds. Real-time integration with backend /api/energy/sync endpoint verified."
+
+  - task: "Summary Cards Display"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/components/EnergyAudit.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Summary cards (data-testid='energy-summary') display correctly after sync. Shows: Tenant=paas_13588, Trackers=12, Véhicules=8, Anomalies=41, Navixy now=2026-08-19 14:11:40. All values accurate and match backend data."
+
+  - task: "Anomaly Counts Badges"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/components/EnergyAudit.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Anomaly counts section (data-testid='anomaly-counts') renders all required badges: NO_ENERGY_TELEMETRY: 12, STALE_DATA: 7, TRACKER_WITHOUT_VEHICLE: 9, VEHICLE_WITHOUT_TRACKER: 5, VIN_ABSENT: 8. All badges present and styled correctly."
+
+  - task: "Mapping Table - Structure & Data"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/components/EnergyAudit.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Mapping table (data-testid='mapping-table') displays 12 tracker rows. All required columns present: Tracker, Label (info seule), VIN OBD, Véhicule lié, Confiance, Connexion. Tracker 781479 (LOGITRAK AUDI) shows VIN=WAUZZZ8V0JA152970, Confiance=HIGH, vehicle_id=164367 (linked). Data accurate."
+
+  - task: "Missing Values Display (NOT 0)"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/components/EnergyAudit.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "CRITICAL RULE VERIFIED: Missing VINs show 'absent' (8 cells, italic grey text). Missing vehicles show 'non lié' (9 cells, italic grey text). NO instances of 0 used for missing data. All missing values properly styled and semantically correct."
+
+  - task: "Detail Panel - Tracker 781479 (ICE Vehicle)"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/components/EnergyAudit.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Detail panel (data-testid='detail-panel') opens correctly for tracker 781479. Metrics table displays with all required columns: Métrique, Valeur, Disponibilité, Type, Source, Horodatage, Raison. Detail button (data-testid='detail-btn-781479') works correctly."
+
+  - task: "Availability Badges (AVAILABLE, STALE, UNAVAILABLE)"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/components/EnergyAudit.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "CRITICAL RULE VERIFIED: Availability badges render with correct colors and are visually distinct. AVAILABLE: green (bg-emerald-100, 2 badges found), STALE: amber (bg-amber-100, 7 badges found), UNAVAILABLE: grey (bg-slate-100, 7 badges found). STALE is clearly distinguishable from AVAILABLE."
+
+  - task: "Specific Metric States (fuel_level, odometer, board_voltage)"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/components/EnergyAudit.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "CRITICAL RULES VERIFIED: fuel_level shows value=30.66 L, availability=STALE (amber), TYPE=MEASURED, SOURCE=NAVIXY_OBD. odometer shows value=138,386.19 km, availability=AVAILABLE. board_voltage shows value=N/A (NOT 0), availability=UNAVAILABLE, TYPE=NONE, SOURCE=NONE. All states correct."
+
+  - task: "TYPE and SOURCE Columns"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/components/EnergyAudit.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "TYPE column displays correctly: MEASURED for available metrics, NONE for unavailable. SOURCE column shows: NAVIXY_OBD, NAVIXY_CAN, NAVIXY_COUNTER for measured metrics, NONE for unavailable. All values accurate."
+
+  - task: "Timestamp Column (Horodatage)"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/components/EnergyAudit.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Horodatage (timestamp) column present in metrics table. 10 timestamp elements found with data-testid attributes (data-testid='ts-{metric_key}'). Timestamps display correctly for available metrics, '—' for unavailable."
+
+  - task: "EV Capability Badges (Tracker 781479)"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/components/EnergyAudit.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "CRITICAL RULE VERIFIED: All EV capability badges (soc, battery_capacity, range_est, charge_power, energy_used, consumption_kwh_100) display as UNAVAILABLE (grey badges). 'Capteurs EV détectés: aucun' message shown. No numeric values present for any EV metric."
+
+  - task: "Detail Panel - EV Tracker 3218549"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/components/EnergyAudit.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "CRITICAL RULE VERIFIED: Detail panel opens for EV tracker 3218549 (data-testid='detail-btn-3218549'). All metrics show value=N/A, availability=UNAVAILABLE. All EV capability badges (soc, battery_capacity, range_est, charge_power, energy_used, consumption_kwh_100) show UNAVAILABLE. NO simulated values, NO numeric values, NO 0 values. Correct implementation."
+
+  - task: "Responsive Design (Mobile Viewport)"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/components/EnergyAudit.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Responsive design verified at mobile viewport (390x844). Header, sync button, and mapping table all visible and accessible. Layout adapts correctly without breakage. Grid layout (grid-cols-2 md:grid-cols-5) works as expected."
+
+  - task: "Console Logs & Error Handling"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/components/EnergyAudit.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "No console page errors detected. No critical console messages. 1 network error found (Cloudflare CDN rum endpoint - not application-related). Application runs cleanly without JavaScript errors."
+
+  - task: "Readiness Banner (Phase 2.1)"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/components/EnergyAudit.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Readiness banner (data-testid='readiness-banner') displays correctly with recommendation='NOT_READY_FOR_A_E'. All KPIs present and accurate: Trackers associés: 25%, Véhicules associés: 37.5%, Couverture VIN: 40%, Énergie thermique: 25%, Énergie EV: 0%, Stale: 7, Anomalies bloquantes: 0. Reason text displayed. Banner styling correct (amber for NOT_READY)."
+
+  - task: "Tab Navigation (Phase 2.1)"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/components/EnergyAudit.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Tab bar (data-testid='energy-tabs') renders with all 4 tabs: tab-mapping, tab-proposals (14), tab-ev, tab-changes (6). All tabs clickable and functional. Active tab styling (violet border) works correctly. Tab counts display dynamically."
+
+  - task: "Proposals Table (Phase 2.1)"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/components/EnergyAudit.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Proposals table (data-testid='proposals-table') displays 14 anomaly rows. All required columns present: Anomalie, Classification, Tracker, Véhicule, VIN OBD, Proposition, Preuve. Classification badges show INSUFFICIENT_DATA (grey). Evidence text displays in last column. Footer text 'Aucune écriture Navixy n'est effectuée' present. CRITICAL: Missing values show '—', 'absent', 'aucune' (NEVER 0). All validations passed."
+
+  - task: "EV Feasibility Section (Phase 2.1)"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/components/EnergyAudit.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "EV feasibility section (data-testid='ev-feasibility') displays correctly. Conclusion sentence: 'No EV energy telemetry is collectable today. FMC130 units could collect SoC/HV battery via an external CAN adapter...'. Device family badges present: fmc130: 6, fmb003: 4, phone: 2. Table shows all 12 trackers with SoC channel classifications: NEEDS_HARDWARE (fmc130), NOT_VERIFIABLE (fmb003), NOT_SUPPORTED (phone). All assessments accurate."
+
+  - task: "Mapping Changes Table (Phase 2.1)"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/components/EnergyAudit.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Changes table (data-testid='changes-table') displays 6 NEW_ASSOCIATION change rows. All required columns present: Type, Tracker, Détecté, Détail. Type badges styled correctly (violet). Timestamps and details display accurately. Empty state handling verified (shows 'Aucun changement de mapping détecté' when no changes)."
+
+  - task: "Phase 2.1 - Missing Values Display (NOT 0)"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/components/EnergyAudit.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "CRITICAL RULE VERIFIED across all Phase 2.1 components: NO numeric 0 used for missing data. Proposals table: missing tracker/vehicle show '—' or 'absent' or 'aucune'. EV feasibility: missing config shows '—'. Changes table: all values present or properly marked. Detail panel: missing values show 'N/A', missing timestamps show '—'. Comprehensive validation passed."
+
+  - task: "Phase 2.1 - Responsive Design"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/components/EnergyAudit.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Responsive design verified at mobile viewport (390x844). Header, readiness banner, tabs, and all Phase 2.1 sections (proposals, EV feasibility, changes) render correctly without breakage. Tab navigation works on mobile. Layout adapts properly."
+
+  - task: "Phase 2.1 - Console Logs & Integration"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/components/EnergyAudit.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "No console errors detected during Phase 2.1 testing. All API integrations working: /api/energy/mapping-proposals, /api/energy/ev-feasibility, /api/energy/mapping-changes, /api/energy/readiness. Data loads automatically on page open via loadAll(). No network errors. Application runs cleanly."
 
 metadata:
   created_by: "testing_agent"
-  version: "1.0"
-  test_sequence: 1
-  run_ui: false
+  version: "1.2"
+  test_sequence: 4
+  run_ui: true
 
 test_plan:
   current_focus:
-    - "All backend endpoints tested and verified"
+    - "Phase 2.1 UI testing completed - all new sections working"
   stuck_tasks: []
   test_all: true
   test_priority: "high_first"
@@ -232,3 +566,9 @@ test_plan:
 agent_communication:
   - agent: "testing"
     message: "Comprehensive backend testing completed for LOGITRAK Energy foundation (Phase 2). All 9 endpoint tests passed (57 individual assertions). Real Navixy API integration verified as READ-ONLY. All critical rules validated: proper null handling, no 0 for missing data, correct availability states, EV metrics properly marked as UNAVAILABLE. Tenant isolation confirmed. No issues found. Backend is production-ready."
+  - agent: "testing"
+    message: "Comprehensive frontend UI testing completed for LOGITRAK Energy audit (Phase 2 foundation). All 14 UI components tested and verified (18/18 test steps passed). Real Navixy sync integration working. All CRITICAL UI RULES verified: (1) Missing values show 'N/A'/'absent'/'non lié' NEVER 0, (2) STALE metrics visually distinct from AVAILABLE (amber vs green), (3) All EV metrics show UNAVAILABLE with no numeric values. Responsive design works. No console errors. Frontend is production-ready."
+  - agent: "testing"
+    message: "Phase 2.1 backend testing completed. All 71 tests passed (14 test scenarios). New endpoints tested: mapping-proposals (14 proposals, all INSUFFICIENT_DATA classification, no label-based proposals), ev-feasibility (device families fmc130:6, fmb003:4, phone:2, ev_collectable_now=0, correct channel classifications), mapping-changes (6 NEW_ASSOCIATION events, idempotency verified), readiness (NOT_READY_FOR_A_E, pct_trackers_associated=25%, all KPIs present). Tenant isolation verified for all new endpoints. REGRESSION PASSED: All Phase 2 endpoints still working correctly. No issues found. Backend Phase 2.1 is production-ready."
+  - agent: "testing"
+    message: "Phase 2.1 UI testing completed. ALL 9 test steps PASSED. New UI sections tested: (1) Readiness banner with NOT_READY_FOR_A_E and all KPIs (trackers 25%, vehicles 37.5%, VIN 40%, thermal 25%, EV 0%, stale 7, blocking 0), (2) Tab navigation with 4 tabs (mapping, proposals, ev, changes), (3) Proposals table with 14 rows, INSUFFICIENT_DATA badges, evidence text, footer 'Aucune écriture Navixy', (4) EV feasibility with conclusion, device families (fmc130:6, fmb003:4, phone:2), SoC channels (NEEDS_HARDWARE, NOT_VERIFIABLE, NOT_SUPPORTED), (5) Changes table with 6 NEW_ASSOCIATION rows, (6) Mapping table with 12 rows, detail panel with HORODATAGE column, (7) Responsive design at 390x844, (8) No console errors. CRITICAL RULE VERIFIED: NO numeric 0 for missing data - all show '—', 'absent', 'aucune', 'N/A'. Phase 2.1 UI is production-ready."

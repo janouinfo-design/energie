@@ -81,4 +81,28 @@ def build_energy_router(db) -> APIRouter:
         tid = await _resolve_tenant(tenant_id)
         return {"tenant_id": tid, "runs": await service.list_sync_runs(tid)}
 
+    @router.get("/mapping-proposals")
+    async def mapping_proposals(tenant_id: Optional[str] = Query(None)):
+        tid = await _resolve_tenant(tenant_id)
+        data = await service.get_proposals(tid)
+        counts: dict = {}
+        for p in data:
+            counts[p["classification"]] = counts.get(p["classification"], 0) + 1
+        return {"tenant_id": tid, "counts": counts, "proposals": data}
+
+    @router.get("/ev-feasibility")
+    async def ev_feasibility(tenant_id: Optional[str] = Query(None)):
+        tid = await _resolve_tenant(tenant_id)
+        return {"tenant_id": tid, **(await service.get_ev_feasibility(tid))}
+
+    @router.get("/mapping-changes")
+    async def mapping_changes(tenant_id: Optional[str] = Query(None)):
+        tid = await _resolve_tenant(tenant_id)
+        return {"tenant_id": tid, "changes": await service.get_mapping_changes(tid)}
+
+    @router.get("/readiness")
+    async def readiness(tenant_id: Optional[str] = Query(None)):
+        tid = await _resolve_tenant(tenant_id)
+        return await service.get_readiness(tid)
+
     return router

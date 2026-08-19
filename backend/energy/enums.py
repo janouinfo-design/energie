@@ -65,3 +65,29 @@ class AnomalyType(str, Enum):
     NO_ENERGY_TELEMETRY = "NO_ENERGY_TELEMETRY"
     # TRACKER/VEHICLE change detection requires history across sync runs.
     MAPPING_CHANGED = "MAPPING_CHANGED"
+
+
+class Channel(str, Enum):
+    """How an energy metric could technically be obtained (evidence-based)."""
+    NATIVE = "NATIVE"                       # provided natively by device today
+    VIA_OBD = "VIA_OBD"                     # standard/OEM OBD PID on supported vehicle
+    VIA_CAN = "VIA_CAN"                     # external CAN adapter signal
+    NEEDS_NAVIXY_CONFIG = "NEEDS_NAVIXY_CONFIG"
+    NEEDS_TRACKER_CONFIG = "NEEDS_TRACKER_CONFIG"
+    NEEDS_HARDWARE = "NEEDS_HARDWARE"       # extra hardware/wiring (e.g. CAN adapter)
+    NOT_SUPPORTED = "NOT_SUPPORTED"
+    NOT_VERIFIABLE = "NOT_VERIFIABLE"       # cannot be proven without vehicle profile
+
+
+class ProposalClass(str, Enum):
+    SAFE_TO_REVIEW = "SAFE_TO_REVIEW"
+    AMBIGUOUS = "AMBIGUOUS"
+    INSUFFICIENT_DATA = "INSUFFICIENT_DATA"
+
+
+class ChangeType(str, Enum):
+    NEW_ASSOCIATION = "NEW_ASSOCIATION"
+    TRACKER_CHANGE = "TRACKER_CHANGE"
+    VIN_CHANGE = "VIN_CHANGE"
+    ASSOCIATION_REMOVED = "ASSOCIATION_REMOVED"
+    CONFLICT = "CONFLICT"

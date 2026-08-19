@@ -49,17 +49,30 @@ export default function EnergyAudit() {
   const [selected, setSelected] = useState(null);
   const [detail, setDetail] = useState(null);
   const [error, setError] = useState(null);
+  const [tab, setTab] = useState("mapping");
+  const [proposals, setProposals] = useState({ counts: {}, proposals: [] });
+  const [evFeas, setEvFeas] = useState({ summary: {}, assessments: [] });
+  const [changes, setChanges] = useState([]);
+  const [readiness, setReadiness] = useState(null);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [mp, an] = await Promise.all([
+      const [mp, an, pr, ev, ch, rd] = await Promise.all([
         axios.get(`${API}/mapping`),
         axios.get(`${API}/anomalies`),
+        axios.get(`${API}/mapping-proposals`),
+        axios.get(`${API}/ev-feasibility`),
+        axios.get(`${API}/mapping-changes`),
+        axios.get(`${API}/readiness`),
       ]);
       setMapping(mp.data.mapping || []);
       setAnomalies(an.data || { counts: {}, anomalies: [] });
+      setProposals(pr.data || { counts: {}, proposals: [] });
+      setEvFeas(ev.data || { summary: {}, assessments: [] });
+      setChanges(ch.data.changes || []);
+      setReadiness(rd.data || null);
     } catch (e) {
       if (e?.response?.status === 409) {
         setMapping([]);
@@ -145,6 +158,53 @@ export default function EnergyAudit() {
           </div>
         )}
 
+        {/* Readiness banner */}
+        {readiness && (
+          <div
+            data-testid="readiness-banner"
+            className={`mb-4 p-3 rounded-lg border text-sm ${
+              readiness.recommendation === "READY_FOR_A_E"
+                ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+                : "bg-amber-50 border-amber-200 text-amber-800"
+            }`}
+          >
+            <div className="font-semibold">Prêt pour Energy→Journal (A–E) : {readiness.recommendation}</div>
+            <div className="text-xs mt-1 flex flex-wrap gap-x-4 gap-y-1">
+              <span>Trackers associés: {readiness.kpis.pct_trackers_associated}%</span>
+              <span>Véhicules associés: {readiness.kpis.pct_vehicles_associated}%</span>
+              <span>Couverture VIN: {readiness.kpis.vin_coverage_physical}%</span>
+              <span>Énergie thermique: {readiness.kpis.thermal_energy_coverage}%</span>
+              <span>Énergie EV: {readiness.kpis.ev_energy_coverage}%</span>
+              <span>Stale: {readiness.kpis.stale_trackers}</span>
+              <span>Anomalies bloquantes: {readiness.kpis.blocking_anomalies}</span>
+            </div>
+            <div className="text-xs mt-1 italic">{readiness.reasons.join(" ")}</div>
+          </div>
+        )}
+
+        {/* Tabs */}
+        <div className="flex gap-1 mb-4 border-b border-slate-200" data-testid="energy-tabs">
+          {[
+            ["mapping", "Mapping"],
+            ["proposals", `Propositions${proposals.proposals.length ? " (" + proposals.proposals.length + ")" : ""}`],
+            ["ev", "Faisabilité EV"],
+            ["changes", `Changements${changes.length ? " (" + changes.length + ")" : ""}`],
+          ].map(([id, label]) => (
+            <button
+              key={id}
+              data-testid={`tab-${id}`}
+              onClick={() => setTab(id)}
+              className={`px-3 py-2 text-sm font-medium -mb-px border-b-2 ${
+                tab === id
+                  ? "border-violet-600 text-violet-700"
+                  : "border-transparent text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         {/* Anomaly counts */}
         <div className="mb-6">
           <h2 className="text-sm font-semibold text-slate-700 mb-2">Anomalies détectées</h2>
@@ -159,7 +219,108 @@ export default function EnergyAudit() {
           </div>
         </div>
 
+        {/* Proposals tab */}
+        {tab === "proposals" && (
+          <div className="bg-white rounded-lg border border-slate-200 overflow-hidden" data-testid="proposals-table">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-100 text-slate-600 text-xs uppercase">
+                <tr>
+                  <th className="text-left px-3 py-2">Anomalie</th>
+                  <th className="text-left px-3 py-2">Classification</th>
+                  <th className="text-left px-3 py-2">Tracker</th>
+                  <th className="text-left px-3 py-2">Véhicule</th>
+                  <th className="text-left px-3 py-2">VIN OBD</th>
+                  <th className="text-left px-3 py-2">Proposition</th>
+                  <th className="text-left px-3 py-2">Preuve</th>
+                </tr>
+              </thead>
+              <tbody>
+                {proposals.proposals.map((p, i) => (
+                  <tr key={i} className="border-t border-slate-100">
+                    <td className="px-3 py-2 text-xs">{p.anomaly}</td>
+                    <td className="px-3 py-2"><Badge text={p.classification} cls={p.classification === "SAFE_TO_REVIEW" ? "bg-emerald-100 text-emerald-800" : p.classification === "AMBIGUOUS" ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-600"} /></td>
+                    <td className="px-3 py-2 font-mono text-xs">{p.tracker_id || <span className="text-slate-400 italic">—</span>}</td>
+                    <td className="px-3 py-2 text-xs">{p.vehicle_id || <span className="text-slate-400 italic">—</span>}</td>
+                    <td className="px-3 py-2 font-mono text-xs">{p.obd_vin || <span className="text-slate-400 italic">absent</span>}</td>
+                    <td className="px-3 py-2 text-xs">{p.proposed_match || <span className="text-slate-400 italic">aucune</span>}</td>
+                    <td className="px-3 py-2 text-xs text-slate-500">{(p.evidence || []).join("; ")}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="px-3 py-2 text-xs text-slate-400 italic border-t border-slate-100">Aucune écriture Navixy n&apos;est effectuée. Propositions à valider manuellement.</div>
+          </div>
+        )}
+
+        {/* EV feasibility tab */}
+        {tab === "ev" && (
+          <div className="bg-white rounded-lg border border-slate-200 p-4" data-testid="ev-feasibility">
+            <div className="text-sm text-slate-700 mb-2">{evFeas.summary.conclusion}</div>
+            <div className="flex flex-wrap gap-2 mb-3 text-xs">
+              {Object.entries(evFeas.summary.device_families || {}).map(([f, c]) => (
+                <Badge key={f} text={`${f}: ${c}`} cls="bg-slate-100 text-slate-700 border-slate-300" />
+              ))}
+            </div>
+            <table className="w-full text-sm">
+              <thead className="bg-slate-100 text-slate-600 text-xs uppercase">
+                <tr>
+                  <th className="text-left px-3 py-2">Tracker</th>
+                  <th className="text-left px-3 py-2">Modèle</th>
+                  <th className="text-left px-3 py-2">SoC — canal</th>
+                  <th className="text-left px-3 py-2">Confiance</th>
+                  <th className="text-left px-3 py-2">Config requise</th>
+                </tr>
+              </thead>
+              <tbody>
+                {evFeas.assessments.map((a) => {
+                  const soc = (a.metrics || []).find((m) => m.metric === "soc") || {};
+                  return (
+                    <tr key={a.tracker_id} className="border-t border-slate-100">
+                      <td className="px-3 py-2 font-mono text-xs">{a.tracker_id}</td>
+                      <td className="px-3 py-2 text-xs">{a.device_family}</td>
+                      <td className="px-3 py-2 text-xs">{soc.channel}</td>
+                      <td className="px-3 py-2 text-xs">{soc.confidence}</td>
+                      <td className="px-3 py-2 text-xs text-slate-500">{soc.config_required || "—"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Mapping changes tab */}
+        {tab === "changes" && (
+          <div className="bg-white rounded-lg border border-slate-200 overflow-hidden" data-testid="changes-table">
+            {changes.length === 0 ? (
+              <div className="p-4 text-sm text-slate-400 italic">Aucun changement de mapping détecté.</div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="bg-slate-100 text-slate-600 text-xs uppercase">
+                  <tr>
+                    <th className="text-left px-3 py-2">Type</th>
+                    <th className="text-left px-3 py-2">Tracker</th>
+                    <th className="text-left px-3 py-2">Détecté</th>
+                    <th className="text-left px-3 py-2">Détail</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {changes.map((c, i) => (
+                    <tr key={i} className="border-t border-slate-100">
+                      <td className="px-3 py-2"><Badge text={c.type} cls="bg-violet-100 text-violet-700 border-violet-300" /></td>
+                      <td className="px-3 py-2 font-mono text-xs">{c.tracker_id}</td>
+                      <td className="px-3 py-2 text-xs">{c.detected_at}</td>
+                      <td className="px-3 py-2 text-xs text-slate-500">{c.detail}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+
         {/* Mapping table */}
+        {tab === "mapping" && (
         <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
           <table className="w-full text-sm" data-testid="mapping-table">
             <thead className="bg-slate-100 text-slate-600 text-xs uppercase">
@@ -196,6 +357,7 @@ export default function EnergyAudit() {
             </tbody>
           </table>
         </div>
+        )}
 
         {/* Detail panel */}
         {selected && (
@@ -215,6 +377,7 @@ export default function EnergyAudit() {
                     <th className="text-left py-1">Disponibilité</th>
                     <th className="text-left py-1">Type</th>
                     <th className="text-left py-1">Source</th>
+                    <th className="text-left py-1">Horodatage</th>
                     <th className="text-left py-1">Raison</th>
                   </tr>
                 </thead>
@@ -226,6 +389,7 @@ export default function EnergyAudit() {
                       <td className="py-1 pr-3"><Badge text={m.availability} cls={AVAIL_STYLE[m.availability]} /></td>
                       <td className="py-1 pr-3 text-xs">{m.measurement_type}</td>
                       <td className="py-1 pr-3 text-xs">{m.source}</td>
+                      <td className="py-1 pr-3 text-xs text-slate-500" data-testid={`ts-${m.key}`}>{m.timestamp || <span className="italic text-slate-400">—</span>}</td>
                       <td className="py-1 pr-3 text-xs text-slate-400">{m.reason || "—"}</td>
                     </tr>
                   ))}
