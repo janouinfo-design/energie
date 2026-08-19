@@ -98,3 +98,23 @@ Règles : Journal CONSOMME, ne recalcule pas. Zéro ≠ indisponible. Réponse j
 3. (Optionnel EV) Configurer capteurs SoC/batterie côté Navixy si le device le supporte, sinon EV=ESTIMATED via Documents.
 4. Livrer l'API Documents (specs/VIN) pour activer les estimations REFERENCE (Phases 4/5).
 5. Définir cache par type (position court, KPI court/moyen, historique long) et isolation tenant.
+
+## 10. PHASE 2 — SOCLE IMPLÉMENTÉ (preuves réelles)
+Livré (build from scratch, workspace vierge confirmé). Backend testé : 57/57 assertions OK.
+- Enveloppe contrat enrichie : `availability`(AVAILABLE|UNAVAILABLE|STALE|ERROR) + `measurement_type`(MEASURED|ESTIMATED|REFERENCE|NONE) + `source`(NAVIXY_OBD|NAVIXY_CAN|NAVIXY_STATE|NAVIXY_COUNTER|DOCUMENTS|CALCULATED|NONE) + value/unit/unit_verified/timestamp/reason.
+- Client Navixy READ-ONLY (whitelist stricte, aucun endpoint d'écriture).
+- Mapping canonique vehicle↔tracker↔VIN : confiance HIGH/MEDIUM/NONE, provenance, JAMAIS depuis le label.
+- Anomalies détectées (sync réel, tenant paas_13588) : NO_ENERGY_TELEMETRY=12, STALE_DATA=7, TRACKER_WITHOUT_VEHICLE=9, VEHICLE_WITHOUT_TRACKER=5, VIN_ABSENT=8.
+- Audit capacité EV : aucun capteur SoC/batterie/kWh/range → toutes métriques EV UNAVAILABLE `no_sensor_configured` (aucune simulation).
+- Règles vérifiées par tests : 0≠null, UNAVAILABLE≠0, STALE≠frais, unité `custom`→unit_verified=false, REFERENCE jamais MEASURED.
+- Fichiers backend : energy/{enums,models,navixy_client,normalization,capability_service,mapping_service,service,routes}.py ; server.py (montage router) ; requirements (httpx) ; .env (NAVIXY_*, ENERGY_STALE_HOURS).
+- Frontend : src/components/EnergyAudit.js (visualisation mapping/anomalies/capabilities, N/A jamais 0).
+- Endpoints socle : /api/energy/{health,sync(POST),mapping,anomalies,trackers/{id}/capabilities,trackers/{id}/metrics,sync-runs}.
+- Écritures Navixy : AUCUNE (lecture seule stricte).
+
+NON RÉALISÉ (assumé, sans fallback inventé) :
+- Contrat complet Energy→Journal A–E (volontairement hors Phase 2).
+- Fallback VIN/specs via Documents (projet non livré) → estimations REFERENCE non alimentables.
+- SoC/kWh/range EV : techniquement impossible aujourd'hui (aucun capteur configuré) → UNAVAILABLE, pas de fallback.
+- Détection MAPPING_CHANGED (nécessite historique multi-run) : champ prévu, non actif.
+- RBAC/auth utilisateur : non implémenté (tenant_id isolé et appliqué à toutes les requêtes ; RBAC = phase ultérieure).

@@ -101,3 +101,134 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: "Test the LOGITRAK Energy foundation backend (Phase 2) with real Navixy telematics API integration (READ-ONLY, platform paas_13588)"
+
+backend:
+  - task: "Health Check Endpoint"
+    implemented: true
+    working: true
+    file: "/app/backend/energy/routes.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "GET /api/energy/health returns correct status='ok', navixy_configured=true, stale_hours='48'. All validations passed."
+
+  - task: "Sync Endpoint (Navixy Integration)"
+    implemented: true
+    working: true
+    file: "/app/backend/energy/service.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "POST /api/energy/sync successfully integrates with real Navixy API. Returns tenant_id='paas_13588', trackers=12, vehicles=8, anomalies=41, errors=[]. Sync completed in ~3.3 seconds. READ-ONLY integration verified."
+
+  - task: "Mapping Endpoint"
+    implemented: true
+    working: true
+    file: "/app/backend/energy/mapping_service.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "GET /api/energy/mapping returns 12 entries with all required fields (tracker_id, tracker_label, obd_vin, vehicle_id, confidence, connection_status). Tracker 781479 (LOGITRAK AUDI) correctly shows confidence=HIGH and obd_vin='WAUZZZ8V0JA152970'."
+
+  - task: "Anomalies Endpoint"
+    implemented: true
+    working: true
+    file: "/app/backend/energy/mapping_service.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "GET /api/energy/anomalies returns correct counts structure with NO_ENERGY_TELEMETRY=12, STALE_DATA=7, TRACKER_WITHOUT_VEHICLE=9, VEHICLE_WITHOUT_TRACKER=5, VIN_ABSENT=8. Total 41 anomalies detected."
+
+  - task: "Tracker Metrics Endpoint (ICE Vehicle)"
+    implemented: true
+    working: true
+    file: "/app/backend/energy/capability_service.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "GET /api/energy/trackers/781479/metrics (ICE vehicle) returns correct metrics. fuel_level: value=30.66L, unit='L', measurement_type='MEASURED', source='NAVIXY_OBD'. odometer: availability='AVAILABLE'. board_voltage: availability='UNAVAILABLE', value=null (correctly NOT 0), reason='no_sensor_configured'. engine_rpm: unit_verified=false. All CRITICAL RULES verified: 0 never used for missing data, STALE not marked AVAILABLE."
+
+  - task: "Tracker Capabilities Endpoint (EV Vehicle)"
+    implemented: true
+    working: true
+    file: "/app/backend/energy/capability_service.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "GET /api/energy/trackers/3218549/capabilities (EV - Skoda) correctly returns ALL EV metrics (soc, battery_capacity, range_est, charge_power, energy_used, consumption_kwh_100) with availability='UNAVAILABLE', measurement_type='NONE', reason='no_sensor_configured'. CRITICAL: No value=0 present, all values correctly absent. No EV metric marked as MEASURED."
+
+  - task: "Edge Cases - Invalid Tracker IDs"
+    implemented: true
+    working: true
+    file: "/app/backend/energy/routes.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "GET /api/energy/trackers/99999999/metrics and /capabilities both correctly return 404 status for non-existent tracker IDs."
+
+  - task: "Tenant Isolation"
+    implemented: true
+    working: true
+    file: "/app/backend/energy/service.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "GET /api/energy/mapping?tenant_id=paas_DOESNOTEXIST correctly returns empty mapping list, confirming no data leak from paas_13588. Tenant isolation working correctly."
+
+  - task: "Critical Rules Validation"
+    implemented: true
+    working: true
+    file: "/app/backend/energy/normalization.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "All CRITICAL RULES verified across all endpoints: (1) 0 is NEVER used to represent missing data - missing values are null with availability=UNAVAILABLE. (2) STALE metrics are NEVER reported as AVAILABLE. (3) No EV metric (SoC/kWh/battery) is ever MEASURED - all correctly UNAVAILABLE with no sensors. (4) REFERENCE is never labelled MEASURED. All validations passed."
+
+frontend:
+  # No frontend testing required for Phase 2 backend
+
+metadata:
+  created_by: "testing_agent"
+  version: "1.0"
+  test_sequence: 1
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "All backend endpoints tested and verified"
+  stuck_tasks: []
+  test_all: true
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "testing"
+    message: "Comprehensive backend testing completed for LOGITRAK Energy foundation (Phase 2). All 9 endpoint tests passed (57 individual assertions). Real Navixy API integration verified as READ-ONLY. All critical rules validated: proper null handling, no 0 for missing data, correct availability states, EV metrics properly marked as UNAVAILABLE. Tenant isolation confirmed. No issues found. Backend is production-ready."

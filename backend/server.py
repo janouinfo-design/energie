@@ -66,6 +66,11 @@ async def get_status_checks():
     
     return status_checks
 
+# Mount the Energy foundation router (Phase 2) under /api
+from energy.routes import build_energy_router  # noqa: E402
+
+api_router.include_router(build_energy_router(db))
+
 # Include the router in the main app
 app.include_router(api_router)
 
