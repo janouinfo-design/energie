@@ -285,6 +285,18 @@ backend:
         agent: "testing"
         comment: "Comprehensive Bearer authentication testing completed. ALL 35 tests PASSED (100% success rate). A) Public health endpoint: accessible without auth, returns status=ok/auth_required=true/stale_hours=48, NO secret exposure verified. B) Bearer auth enforcement on /api/energy/mapping: 401 for no header/wrong token/wrong scheme (Basic), 200 with valid token returning 12 mapping entries. C) All 9 data routes require auth: anomalies, readiness, mapping-proposals, ev-feasibility, mapping-changes, sync-runs, trackers/{id}/metrics, trackers/{id}/capabilities, sync - all return 401 without token and 200 with valid token. D) Regression tests passed: mapping has 12 entries with tracker 781479 (confidence=HIGH, obd_vin=WAUZZZ8V0JA152970), fuel_level (MEASURED/NAVIXY_OBD, STALE, value=30.66), board_voltage (UNAVAILABLE, value=null not 0), all EV metrics UNAVAILABLE, readiness (NOT_READY_FOR_A_E, ev_energy_coverage=0.0). E) Tenant isolation verified: paas_DOESNOTEXIST returns empty mapping (no leak), tracker 781479 with wrong tenant returns 404 (no cross-tenant leak), invalid tracker 99999999 returns 404. F) Secret hygiene verified: health endpoint, 401 responses, and authenticated responses do NOT expose token value. Backend-to-backend authentication is production-ready."
 
+  - task: "Energy v1 Contract Compliance (Journal-facing API)"
+    implemented: true
+    working: true
+    file: "/app/backend/energy/v1_routes.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "CONTRACT-COMPLIANCE verification completed. ALL 14 tests PASSED (100% success rate). 1) TRIPS BATCH: POST /api/energy/v1/trips/energy:batch returns fuel object with EXACTLY keys {fuel_liters, consumption_l_100km} and electric object with EXACTLY keys {soc_start_pct, soc_end_pct, energy_kwh, consumption_kwh_100km}. All 6 metrics are UNAVAILABLE envelopes with value=null, measurement_type=null (NOT 'NONE'). Trip A (ref=781479): status=NO_ENERGY_DATA, tracker_id=781479, powertrain=UNKNOWN. Trip B (ref=999999): status=MAPPING_INVALID, tracker_id=null, powertrain=UNKNOWN. Litres and kWh kept in SEPARATE objects (never merged). 2) FLEET SUMMARY: GET /api/energy/v1/fleet/summary returns metrics object with EXACTLY 6 keys {thermal_consumption_l_100km, electric_consumption_kwh_100km, fuel_liters_total, electric_kwh_total, obd_coverage_pct, vehicles_with_data}. obd_coverage_pct: AVAILABLE/ESTIMATED/CALCULATED/%/25.0. vehicles_with_data: AVAILABLE/3. thermal/electric/fuel/electric_kwh: UNAVAILABLE/null/measurement_type=null. 3) VEHICLE SUMMARY: GET /api/energy/v1/vehicles/781479/summary returns metrics object with EXACTLY 2 keys {fuel_liters_total, energy_kwh_total}. fuel_liters_total: value≈28.0L, STALE, MEASURED, NAVIXY_CAN (STALE preserved, not promoted). energy_kwh_total: UNAVAILABLE/null/measurement_type=null. 4) TENANT STRICT: Batch/Fleet/Vehicle with mismatched tenant_id (body/query vs X-Tenant-Id header) all return 400. Matching tenant returns 200. Single mechanism (body or query only) returns 200. 5) HEALTH: GET /api/energy/v1/health without token returns 200, contract_version=v1, no secret field. With token also returns 200 (no error). 6) RULES: Scanned ALL responses - 'NONE' NEVER appears as measurement_type, 'ERROR' NEVER appears as availability, UNAVAILABLE metrics have value=null (NEVER 0). 7) AUTH REGRESSION: All v1 data routes (vehicles/summary, fleet/summary, trips/batch) return 401 without token. Energy v1 Journal-facing API is production-ready and contract-compliant."
+
 
 frontend:
   - task: "EnergyAudit Component - Page Load & Header"
@@ -565,13 +577,13 @@ frontend:
 
 metadata:
   created_by: "testing_agent"
-  version: "1.3"
-  test_sequence: 5
+  version: "1.4"
+  test_sequence: 6
   run_ui: true
 
 test_plan:
   current_focus:
-    - "Phase 2.2 Backend-to-Backend Bearer Authentication testing completed - all auth flows working"
+    - "Energy v1 Contract Compliance testing completed - all contract requirements verified"
   stuck_tasks: []
   test_all: true
   test_priority: "high_first"
@@ -587,3 +599,5 @@ agent_communication:
     message: "Phase 2.1 UI testing completed. ALL 9 test steps PASSED. New UI sections tested: (1) Readiness banner with NOT_READY_FOR_A_E and all KPIs (trackers 25%, vehicles 37.5%, VIN 40%, thermal 25%, EV 0%, stale 7, blocking 0), (2) Tab navigation with 4 tabs (mapping, proposals, ev, changes), (3) Proposals table with 14 rows, INSUFFICIENT_DATA badges, evidence text, footer 'Aucune écriture Navixy', (4) EV feasibility with conclusion, device families (fmc130:6, fmb003:4, phone:2), SoC channels (NEEDS_HARDWARE, NOT_VERIFIABLE, NOT_SUPPORTED), (5) Changes table with 6 NEW_ASSOCIATION rows, (6) Mapping table with 12 rows, detail panel with HORODATAGE column, (7) Responsive design at 390x844, (8) No console errors. CRITICAL RULE VERIFIED: NO numeric 0 for missing data - all show '—', 'absent', 'aucune', 'N/A'. Phase 2.1 UI is production-ready."
   - agent: "testing"
     message: "Phase 2.2 Backend-to-Backend Bearer Authentication testing completed. ALL 35 tests PASSED (100% success rate). Comprehensive test coverage: (A) Public health endpoint accessible without auth, no secret exposure, (B) Bearer auth enforcement on /api/energy/mapping (401 for missing/wrong/malformed tokens, 200 with valid token), (C) All 9 data routes require auth (anomalies, readiness, mapping-proposals, ev-feasibility, mapping-changes, sync-runs, trackers/metrics, trackers/capabilities, sync), (D) Regression tests passed (mapping 12 entries, tracker 781479 details, fuel_level STALE/30.66, board_voltage UNAVAILABLE/null, EV metrics UNAVAILABLE, readiness NOT_READY_FOR_A_E), (E) Tenant isolation verified (empty mapping for non-existent tenant, 404 for cross-tenant access, 404 for invalid tracker), (F) Secret hygiene verified (no token leakage in health/401/authenticated responses). Backend-to-backend authentication is production-ready. Real Navixy integration continues to work correctly with auth layer."
+  - agent: "testing"
+    message: "Energy v1 Contract Compliance testing completed. ALL 14 tests PASSED (100% success rate). Journal-facing API verified against exact contract requirements: (1) TRIPS BATCH: fuel object has EXACTLY {fuel_liters, consumption_l_100km}, electric object has EXACTLY {soc_start_pct, soc_end_pct, energy_kwh, consumption_kwh_100km}, all UNAVAILABLE/null/measurement_type=null (NOT 'NONE'), litres and kWh in SEPARATE objects. Trip A (781479): NO_ENERGY_DATA/UNKNOWN. Trip B (999999): MAPPING_INVALID/null. (2) FLEET SUMMARY: metrics has EXACTLY 6 keys {thermal_consumption_l_100km, electric_consumption_kwh_100km, fuel_liters_total, electric_kwh_total, obd_coverage_pct, vehicles_with_data}. obd_coverage_pct: AVAILABLE/ESTIMATED/CALCULATED/25.0%. vehicles_with_data: AVAILABLE/3. Others: UNAVAILABLE/null. (3) VEHICLE SUMMARY: metrics has EXACTLY 2 keys {fuel_liters_total, energy_kwh_total}. fuel_liters_total: ≈28.0L/STALE/MEASURED/NAVIXY_CAN. energy_kwh_total: UNAVAILABLE/null. (4) TENANT STRICT: Mismatch returns 400, matching returns 200, single mechanism returns 200. (5) HEALTH: Without token returns 200/contract_version=v1/no secret. With token returns 200. (6) RULES: NO 'NONE' measurement_type, NO 'ERROR' availability, null != 0 everywhere. (7) AUTH: All v1 data routes return 401 without token. Energy v1 Journal-facing API is production-ready and contract-compliant."

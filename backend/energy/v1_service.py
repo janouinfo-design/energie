@@ -19,10 +19,23 @@ from typing import Any, Dict, List, Optional, Tuple
 from .service import EnergyService
 from .v1_contract import empty_metric, to_journal_metric
 
-# Metrics we expose per vehicle summary (fuel/thermal side + counters).
-_SUMMARY_METRIC_KEYS = [
-    "fuel_level", "fuel_consumed", "odometer", "engine_hours", "coolant_temp",
-]
+
+def _computed_metric(value, unit: str, reason: str) -> Dict[str, Any]:
+    """A Journal envelope for an aggregate value derived from real data.
+
+    A value computed from other data is ESTIMATED (per contract rules) and its
+    source is CALCULATED (never a sensor source for a derived value).
+    """
+    return {
+        "value": value,
+        "unit": unit,
+        "unit_verified": True,
+        "availability": "AVAILABLE",
+        "measurement_type": "ESTIMATED",
+        "source": "CALCULATED",
+        "timestamp": None,
+        "reason": reason,
+    }
 
 
 class EnergyV1Service:
@@ -67,8 +80,16 @@ class EnergyV1Service:
             for m in snap.get("metrics", []):
                 metrics_by_key[m.get("key")] = m
 
+        # Journal contract requires EXACTLY these two metric keys.
+        # fuel_liters_total <- internal cumulative fuel consumed (NAVIXY_CAN).
+        # energy_kwh_total  <- EV energy (no telemetry today -> UNAVAILABLE/null).
         out_metrics = {
-            k: to_journal_metric(metrics_by_key.get(k)) for k in _SUMMARY_METRIC_KEYS
+            "fuel_liters_total": to_journal_metric(metrics_by_key.get("fuel_consumed")),
+            "energy_kwh_total": (
+                to_journal_metric(metrics_by_key.get("energy_used"))
+                if metrics_by_key.get("energy_used")
+                else empty_metric("no_ev_energy_telemetry")
+            ),
         }
         body = {
             "ref": ref,
@@ -120,7 +141,7 @@ class EnergyV1Service:
                     "status": "MAPPING_INVALID",
                     "powertrain": "UNKNOWN",
                     "window": {"start": start, "end": end},
-                    "energy": self._empty_energy_block(
+                    **self._energy_blocks(
                         reason="ref could not be resolved to a proven tracker"
                     ),
                 })
@@ -134,24 +155,26 @@ class EnergyV1Service:
                 "status": "NO_ENERGY_DATA",
                 "powertrain": idt.get("energy_type", "UNKNOWN"),
                 "window": {"start": start, "end": end},
-                "energy": self._empty_energy_block(
+                **self._energy_blocks(
                     reason="per-trip historical energy not available from current telemetry"
                 ),
             })
         return {"tenant_id": tenant_id, "count": len(results), "results": results}
 
     @staticmethod
-    def _empty_energy_block(reason: str) -> Dict[str, Any]:
-        """Powertrain-agnostic energy block; L and kWh kept strictly separate."""
+    def _energy_blocks(reason: str) -> Dict[str, Any]:
+        """Exact Journal field names. Litres and kWh kept in SEPARATE blocks."""
         return {
-            # ICE / HEV / PHEV fuel side
-            "fuel_used_l": empty_metric(reason),
-            "consumption_l_100": empty_metric(reason),
-            # BEV / PHEV electric side (NEVER merged with litres)
-            "energy_kwh": empty_metric(reason),
-            "consumption_kwh_100": empty_metric(reason),
-            "soc_start": empty_metric(reason),
-            "soc_end": empty_metric(reason),
+            "fuel": {
+                "fuel_liters": empty_metric(reason),
+                "consumption_l_100km": empty_metric(reason),
+            },
+            "electric": {
+                "soc_start_pct": empty_metric(reason),
+                "soc_end_pct": empty_metric(reason),
+                "energy_kwh": empty_metric(reason),
+                "consumption_kwh_100km": empty_metric(reason),
+            },
         }
 
     async def fleet_summary(self, tenant_id: str) -> Dict[str, Any]:
@@ -186,16 +209,34 @@ class EnergyV1Service:
                 fuel_available_trackers += 1
 
         associated = sum(1 for i in identities if i.get("vehicle_id") is not None)
+        total = len(identities)
+        obd_cov = round(100.0 * fuel_available_trackers / total, 1) if total else 0.0
+
+        # Journal contract requires EXACTLY these 6 metric envelopes.
+        # - Period consumption totals/averages are NOT computable from the current
+        #   real telemetry -> honest UNAVAILABLE/value:null (no fabrication, no zero).
+        # - obd_coverage_pct and vehicles_with_data ARE computable from real data
+        #   (derived -> ESTIMATED / CALCULATED).
+        metrics = {
+            "thermal_consumption_l_100km": empty_metric("period_consumption_not_available"),
+            "electric_consumption_kwh_100km": empty_metric("no_ev_energy_telemetry"),
+            "fuel_liters_total": empty_metric("period_fuel_total_not_available"),
+            "electric_kwh_total": empty_metric("no_ev_energy_telemetry"),
+            "obd_coverage_pct": _computed_metric(
+                obd_cov, "%", "share_of_trackers_with_obd_fuel_data"
+            ),
+            "vehicles_with_data": _computed_metric(
+                fuel_available_trackers, "count", "trackers_with_fuel_data"
+            ),
+        }
 
         return {
             "tenant_id": tenant_id,
-            "trackers_total": len(identities),
+            "trackers_total": total,
             "trackers_associated": associated,
             "powertrain_distribution": powertrain_counts,
             "fuel_level_quality": quality,
-            "fuel_trackers_with_data": fuel_available_trackers,
-            # EV energy is not collected -> report explicitly, do NOT zero it out
-            "ev_energy": {"available_trackers": 0, "status": "UNAVAILABLE"},
+            "metrics": metrics,
             "note": (
                 "Aggregates reflect only proven data. Absence is reported as "
                 "UNAVAILABLE, never as 0. Litres and kWh are never mixed."

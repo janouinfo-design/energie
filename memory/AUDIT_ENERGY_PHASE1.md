@@ -170,3 +170,13 @@ Les 4 routes validées sont implémentées au-dessus du socle (réutilisation d'
 - Tests (backend agent 20/20) : contrat 4 routes, auth (401/scheme), tenant/IDOR (404/400/mismatch/cross-tenant batch), limites (413), partiel, null≠0, STALE, UNKNOWN, no "NONE"/"ERROR", REAL NAVIXY 12/12 (<10s), régression socle.
 Fichiers Phase 3 : backend/energy/{v1_contract.py, v1_service.py, v1_routes.py} ; server.py (montage v1).
 NON RÉALISÉ (assumé) : énergie par trajet MEASURED/ESTIMATED (historique par fenêtre non disponible via télémétrie temps réel → nécessiterait les rapports Navixy async ou capteurs additionnels) → renvoyé UNAVAILABLE sans fabrication.
+
+## 14. PHASE 3.1 — CONFORMITÉ NOMS DE CHAMPS (JSON sérialisé) — CORRIGÉE & TESTÉE (14/14)
+Correction limitée à la COUCHE DE SÉRIALISATION v1 (noms internes du socle inchangés). JSON réellement sérialisé vérifié par testing agent.
+- batch : chaque result contient `fuel:{fuel_liters, consumption_l_100km}` et `electric:{soc_start_pct, soc_end_pct, energy_kwh, consumption_kwh_100km}` (L et kWh séparés).
+- fleet : `metrics` = EXACTEMENT {thermal_consumption_l_100km, electric_consumption_kwh_100km, fuel_liters_total, electric_kwh_total, obd_coverage_pct, vehicles_with_data}. obd_coverage_pct & vehicles_with_data = réels (ESTIMATED/CALCULATED) ; totaux/moyennes période = UNAVAILABLE/null honnêtes.
+- vehicle : `metrics` = EXACTEMENT {fuel_liters_total (STALE/MEASURED/NAVIXY_CAN), energy_kwh_total (UNAVAILABLE/null)}.
+- Tenant strict : header vs body/query différents → 400 (jamais choix silencieux) ; matching → 200 ; mécanisme unique → 200.
+- health : public, Bearer optionnel accepté (200).
+- Règles : aucun "NONE"/"ERROR" sérialisé ; null≠0 ; STALE préservé.
+Fichiers : backend/energy/{v1_contract.py, v1_service.py} (sérialisation) ; doc /app/memory/ENERGY_V1_CONTRACT_EXAMPLES.md (placeholders).
