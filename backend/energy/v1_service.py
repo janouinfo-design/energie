@@ -20,6 +20,21 @@ from .service import EnergyService
 from .v1_contract import empty_metric, to_journal_metric
 
 
+_JOURNAL_POWERTRAIN = {
+    "ICE_PETROL": "ICE",
+    "ICE_DIESEL": "ICE",
+    "HYBRID": "HEV",
+    "PHEV": "PHEV",
+    "BEV": "BEV",
+    "UNKNOWN": "UNKNOWN",
+}
+
+
+def _journal_powertrain(energy_type: Optional[str]) -> str:
+    """Map internal energy_type to the Journal powertrain nomenclature."""
+    return _JOURNAL_POWERTRAIN.get(energy_type or "UNKNOWN", "UNKNOWN")
+
+
 def _computed_metric(value, unit: str, reason: str) -> Dict[str, Any]:
     """A Journal envelope for an aggregate value derived from real data.
 
@@ -97,7 +112,7 @@ class EnergyV1Service:
             "tracker_id": tracker_id,
             "vehicle_id": idt.get("vehicle_id"),
             "vin": idt.get("obd_vin"),
-            "powertrain": idt.get("energy_type", "UNKNOWN"),   # UNKNOWN stays UNKNOWN
+            "powertrain": _journal_powertrain(idt.get("energy_type")),   # UNKNOWN stays UNKNOWN
             "connection_status": idt.get("connection_status"),
             "metrics": out_metrics,
         }
@@ -136,30 +151,43 @@ class EnergyV1Service:
             if idt is None:
                 results.append({
                     "trip_id": trip_id,
-                    "ref": ref,
-                    "tracker_id": None,
-                    "status": "MAPPING_INVALID",
+                    "availability": "UNAVAILABLE",
+                    "reason": "mapping_invalid",
                     "powertrain": "UNKNOWN",
-                    "window": {"start": start, "end": end},
                     **self._energy_blocks(
                         reason="ref could not be resolved to a proven tracker"
                     ),
+                    "contract_version": "1.0",
+                    # extra (informational, same level; no 'energy' wrapper)
+                    "ref": ref,
+                    "tracker_id": None,
+                    "status": "MAPPING_INVALID",
+                    "window": {"start": start, "end": end},
                 })
                 continue
 
             # No per-window historical energy available -> honest UNAVAILABLE.
             results.append({
                 "trip_id": trip_id,
-                "ref": ref,
-                "tracker_id": idt.get("tracker_id"),
-                "status": "NO_ENERGY_DATA",
-                "powertrain": idt.get("energy_type", "UNKNOWN"),
-                "window": {"start": start, "end": end},
+                "availability": "UNAVAILABLE",
+                "reason": "no_per_trip_energy",
+                "powertrain": _journal_powertrain(idt.get("energy_type")),
                 **self._energy_blocks(
                     reason="per-trip historical energy not available from current telemetry"
                 ),
+                "contract_version": "1.0",
+                # extra (informational, same level; no 'energy' wrapper)
+                "ref": ref,
+                "tracker_id": idt.get("tracker_id"),
+                "status": "NO_ENERGY_DATA",
+                "window": {"start": start, "end": end},
             })
-        return {"tenant_id": tenant_id, "count": len(results), "results": results}
+        return {
+            "contract_version": "1.0",
+            "tenant_id": tenant_id,
+            "count": len(results),
+            "results": results,
+        }
 
     @staticmethod
     def _energy_blocks(reason: str) -> Dict[str, Any]:

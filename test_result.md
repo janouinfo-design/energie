@@ -298,6 +298,19 @@ backend:
         comment: "CONTRACT-COMPLIANCE verification completed. ALL 14 tests PASSED (100% success rate). 1) TRIPS BATCH: POST /api/energy/v1/trips/energy:batch returns fuel object with EXACTLY keys {fuel_liters, consumption_l_100km} and electric object with EXACTLY keys {soc_start_pct, soc_end_pct, energy_kwh, consumption_kwh_100km}. All 6 metrics are UNAVAILABLE envelopes with value=null, measurement_type=null (NOT 'NONE'). Trip A (ref=781479): status=NO_ENERGY_DATA, tracker_id=781479, powertrain=UNKNOWN. Trip B (ref=999999): status=MAPPING_INVALID, tracker_id=null, powertrain=UNKNOWN. Litres and kWh kept in SEPARATE objects (never merged). 2) FLEET SUMMARY: GET /api/energy/v1/fleet/summary returns metrics object with EXACTLY 6 keys {thermal_consumption_l_100km, electric_consumption_kwh_100km, fuel_liters_total, electric_kwh_total, obd_coverage_pct, vehicles_with_data}. obd_coverage_pct: AVAILABLE/ESTIMATED/CALCULATED/%/25.0. vehicles_with_data: AVAILABLE/3. thermal/electric/fuel/electric_kwh: UNAVAILABLE/null/measurement_type=null. 3) VEHICLE SUMMARY: GET /api/energy/v1/vehicles/781479/summary returns metrics object with EXACTLY 2 keys {fuel_liters_total, energy_kwh_total}. fuel_liters_total: value≈28.0L, STALE, MEASURED, NAVIXY_CAN (STALE preserved, not promoted). energy_kwh_total: UNAVAILABLE/null/measurement_type=null. 4) TENANT STRICT: Batch/Fleet/Vehicle with mismatched tenant_id (body/query vs X-Tenant-Id header) all return 400. Matching tenant returns 200. Single mechanism (body or query only) returns 200. 5) HEALTH: GET /api/energy/v1/health without token returns 200, contract_version=v1, no secret field. With token also returns 200 (no error). 6) RULES: Scanned ALL responses - 'NONE' NEVER appears as measurement_type, 'ERROR' NEVER appears as availability, UNAVAILABLE metrics have value=null (NEVER 0). 7) AUTH REGRESSION: All v1 data routes (vehicles/summary, fleet/summary, trips/batch) return 401 without token. Energy v1 Journal-facing API is production-ready and contract-compliant."
 
 
+  - task: "Energy v1 Trips Batch - CRITICAL Nesting Verification"
+    implemented: true
+    working: true
+    file: "/app/backend/energy/v1_routes.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "CRITICAL NESTING VERIFICATION completed. ALL assertions PASSED. Verified EXACT JSON serialization structure of POST /api/energy/v1/trips/energy:batch with real Navixy tenant paas_13588. CRITICAL FINDING: NO 'energy' wrapper key exists anywhere in result objects - fuel and electric are DIRECTLY under each result item (not nested under result['energy']). Detailed verification: (1) Top-level: contract_version='1.0', results list with 2 items. (2) Each result has keys at SAME LEVEL: trip_id, availability, reason, powertrain, fuel, electric, contract_version. (3) NO intermediate 'energy' key present (verified result.get('energy') does not exist). (4) fuel object has EXACTLY keys {fuel_liters, consumption_l_100km}. (5) electric object has EXACTLY keys {soc_start_pct, soc_end_pct, energy_kwh, consumption_kwh_100km}. (6) All 6 metrics are UNAVAILABLE envelopes with value=null (NEVER 0), measurement_type=null (NOT string 'NONE'), availability=UNAVAILABLE (NEVER 'ERROR'). (7) Trip A (ref=781479): tracker_id=781479, status=NO_ENERGY_DATA, powertrain=UNKNOWN. (8) Trip B (ref=999999): tracker_id=null, status=MAPPING_INVALID, powertrain=UNKNOWN. Correct nesting structure confirmed - fuel and electric are direct children of result object."
+
+
 frontend:
   - task: "EnergyAudit Component - Page Load & Header"
     implemented: true
@@ -577,13 +590,13 @@ frontend:
 
 metadata:
   created_by: "testing_agent"
-  version: "1.4"
-  test_sequence: 6
+  version: "1.5"
+  test_sequence: 7
   run_ui: true
 
 test_plan:
   current_focus:
-    - "Energy v1 Contract Compliance testing completed - all contract requirements verified"
+    - "Energy v1 Trips Batch CRITICAL Nesting Verification completed - NO 'energy' wrapper key confirmed"
   stuck_tasks: []
   test_all: true
   test_priority: "high_first"
@@ -601,3 +614,5 @@ agent_communication:
     message: "Phase 2.2 Backend-to-Backend Bearer Authentication testing completed. ALL 35 tests PASSED (100% success rate). Comprehensive test coverage: (A) Public health endpoint accessible without auth, no secret exposure, (B) Bearer auth enforcement on /api/energy/mapping (401 for missing/wrong/malformed tokens, 200 with valid token), (C) All 9 data routes require auth (anomalies, readiness, mapping-proposals, ev-feasibility, mapping-changes, sync-runs, trackers/metrics, trackers/capabilities, sync), (D) Regression tests passed (mapping 12 entries, tracker 781479 details, fuel_level STALE/30.66, board_voltage UNAVAILABLE/null, EV metrics UNAVAILABLE, readiness NOT_READY_FOR_A_E), (E) Tenant isolation verified (empty mapping for non-existent tenant, 404 for cross-tenant access, 404 for invalid tracker), (F) Secret hygiene verified (no token leakage in health/401/authenticated responses). Backend-to-backend authentication is production-ready. Real Navixy integration continues to work correctly with auth layer."
   - agent: "testing"
     message: "Energy v1 Contract Compliance testing completed. ALL 14 tests PASSED (100% success rate). Journal-facing API verified against exact contract requirements: (1) TRIPS BATCH: fuel object has EXACTLY {fuel_liters, consumption_l_100km}, electric object has EXACTLY {soc_start_pct, soc_end_pct, energy_kwh, consumption_kwh_100km}, all UNAVAILABLE/null/measurement_type=null (NOT 'NONE'), litres and kWh in SEPARATE objects. Trip A (781479): NO_ENERGY_DATA/UNKNOWN. Trip B (999999): MAPPING_INVALID/null. (2) FLEET SUMMARY: metrics has EXACTLY 6 keys {thermal_consumption_l_100km, electric_consumption_kwh_100km, fuel_liters_total, electric_kwh_total, obd_coverage_pct, vehicles_with_data}. obd_coverage_pct: AVAILABLE/ESTIMATED/CALCULATED/25.0%. vehicles_with_data: AVAILABLE/3. Others: UNAVAILABLE/null. (3) VEHICLE SUMMARY: metrics has EXACTLY 2 keys {fuel_liters_total, energy_kwh_total}. fuel_liters_total: ≈28.0L/STALE/MEASURED/NAVIXY_CAN. energy_kwh_total: UNAVAILABLE/null. (4) TENANT STRICT: Mismatch returns 400, matching returns 200, single mechanism returns 200. (5) HEALTH: Without token returns 200/contract_version=v1/no secret. With token returns 200. (6) RULES: NO 'NONE' measurement_type, NO 'ERROR' availability, null != 0 everywhere. (7) AUTH: All v1 data routes return 401 without token. Energy v1 Journal-facing API is production-ready and contract-compliant."
+  - agent: "testing"
+    message: "Energy v1 Trips Batch CRITICAL Nesting Verification completed. ALL assertions PASSED. Verified the EXACT JSON serialization structure of POST /api/energy/v1/trips/energy:batch with real Navixy tenant paas_13588. CRITICAL CONFIRMATION: NO 'energy' wrapper key exists anywhere in result objects. The 'fuel' and 'electric' objects are DIRECTLY under each result item (not nested under result['energy']). Detailed findings: (1) Top-level structure correct: contract_version='1.0', results list with 2 items. (2) Each result has all required keys at the SAME LEVEL: trip_id, availability, reason, powertrain, fuel, electric, contract_version. (3) Verified result.get('energy') does NOT exist - no intermediate wrapper. (4) fuel object has EXACTLY {fuel_liters, consumption_l_100km}. (5) electric object has EXACTLY {soc_start_pct, soc_end_pct, energy_kwh, consumption_kwh_100km}. (6) All 6 metrics are UNAVAILABLE envelopes with value=null (NEVER 0), measurement_type=null (NOT string 'NONE'), availability=UNAVAILABLE (NEVER 'ERROR'). (7) Trip A (ref=781479): tracker_id=781479, status=NO_ENERGY_DATA, powertrain=UNKNOWN. (8) Trip B (ref=999999): tracker_id=null, status=MAPPING_INVALID, powertrain=UNKNOWN. Correct nesting structure confirmed."

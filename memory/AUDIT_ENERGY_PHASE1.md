@@ -180,3 +180,12 @@ Correction limitée à la COUCHE DE SÉRIALISATION v1 (noms internes du socle in
 - health : public, Bearer optionnel accepté (200).
 - Règles : aucun "NONE"/"ERROR" sérialisé ; null≠0 ; STALE préservé.
 Fichiers : backend/energy/{v1_contract.py, v1_service.py} (sérialisation) ; doc /app/memory/ENERGY_V1_CONTRACT_EXAMPLES.md (placeholders).
+
+## 15. PHASE 3.2 — IMBRICATION BATCH VERROUILLÉE (JSON sérialisé, testé)
+Contrat exact confirmé : `fuel` et `electric` DIRECTEMENT sous chaque result ; aucune clé intermédiaire `energy`. Ajout des champs manquants au même niveau : `availability`, `reason`, `powertrain` (nomenclature Journal ICE/HEV/PHEV/BEV/UNKNOWN), `contract_version:"1.0"` (par result + top-level).
+Vérifié par testing agent (JSON réel) :
+- TOP keys: contract_version="1.0", tenant_id, count, results.
+- result keys même niveau: trip_id, availability, reason, powertrain, fuel, electric, contract_version (+ extras informationnels ref/tracker_id/status/window).
+- clé `energy` ABSENTE ; fuel={fuel_liters, consumption_l_100km} ; electric={soc_start_pct, soc_end_pct, energy_kwh, consumption_kwh_100km}.
+- métriques UNAVAILABLE/null (jamais 0), measurement_type jamais "NONE", availability jamais "ERROR".
+Aucune modification côté Livre de bord. Prochaine étape = campagne REAL ENERGY end-to-end côté Journal.
