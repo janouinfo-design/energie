@@ -144,3 +144,17 @@ NON RÉALISÉ (assumé, sans fallback inventé) :
 - Backend : energy/ev_feasibility.py, energy/mapping_proposals.py ; extensions energy/{enums,service,routes}.py.
 - Frontend : src/components/EnergyAudit.js (onglets Propositions/Faisabilité EV/Changements + bannière Readiness).
 - Endpoints ajoutés : /api/energy/{mapping-proposals, ev-feasibility, mapping-changes, readiness}.
+
+## 12. PHASE 2.2 — AUTH BEARER + SÉCURISATION (éléments indépendants du contrat Journal)
+IMPORTANT : les 4 routes MÉTIER v1 (health v1, trips/energy:batch, fleet/summary, vehicles/{ref}/summary) NE SONT PAS développées — leur structure exacte dépend de `energy_client.py` du Journal, non accessible depuis ce projet. Statut : BLOQUÉ / À CONFIRMER (energy_client.py requis). Aucune supposition faite.
+
+Éléments confirmés implémentés & testés (backend 35/35) :
+- Auth backend→backend `Authorization: Bearer <token>` via `ENERGY_API_TOKEN` (secret fort généré, stocké server-side, jamais affiché/loggé/retourné/commité). Comparaison constant-time. Absent/mauvais → 401 ; token non configuré côté serveur → 503 (fail-closed).
+- Toutes les routes de DONNÉES techniques sécurisées (mapping, metrics, capabilities, anomalies, readiness, proposals, ev-feasibility, mapping-changes, sync-runs, sync). `health` reste PUBLIC et n'expose aucun secret (status, contract_version=v1-foundation, navixy_configured, auth_required, stale_hours).
+- Isolation tenant renforcée et testée : tenant inexistant → mapping vide ; tracker d'un autre tenant → 404 (aucune fuite) ; batch cross-tenant : N/A (route batch non développée).
+- `.gitignore` durci : `backend/.env` et `frontend/.env` ignorés (secrets jamais commités).
+- Mapping interne canonique par `navixy_tracker_id` : déjà en place (12/12).
+- Préservation stricte : null≠0, STALE (jamais promu AVAILABLE), MEASURED/ESTIMATED/REFERENCE/NONE : inchangés.
+- UI d'audit : dégradation gracieuse en 401 (les routes de données exigent Bearer ; le secret ne doit pas être en frontend → l'UI n'appelle plus directement les données, health public reste affiché).
+
+Fichiers Phase 2.2 : backend/energy/auth.py ; energy/routes.py (dependencies=secured + health enrichi) ; backend/.env (+ENERGY_API_TOKEN) ; .gitignore ; frontend/src/components/EnergyAudit.js (health + gestion 401).

@@ -54,6 +54,7 @@ export default function EnergyAudit() {
   const [evFeas, setEvFeas] = useState({ summary: {}, assessments: [] });
   const [changes, setChanges] = useState([]);
   const [readiness, setReadiness] = useState(null);
+  const [health, setHealth] = useState(null);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -74,9 +75,15 @@ export default function EnergyAudit() {
       setChanges(ch.data.changes || []);
       setReadiness(rd.data || null);
     } catch (e) {
-      if (e?.response?.status === 409) {
+      if (e?.response?.status === 401 || e?.response?.status === 503) {
+        setError(
+          "Accès protégé : les routes de données Energy exigent désormais une authentification backend→backend (Bearer). " +
+          "Le secret ne doit pas se trouver dans le frontend, donc cet outil d'audit ne charge plus les données directement. " +
+          "Utilisez un backend autorisé (ex. Journal) ou un client serveur avec ENERGY_API_TOKEN."
+        );
+      } else if (e?.response?.status === 409) {
         setMapping([]);
-        setError("Aucune donnée. Lancez une synchronisation Navixy.");
+        setError("Aucune donnée. Lancez une synchronisation Navixy depuis un client autorisé.");
       } else {
         setError("Erreur de chargement des données.");
       }
@@ -85,9 +92,19 @@ export default function EnergyAudit() {
     }
   }, []);
 
+  const loadHealth = useCallback(async () => {
+    try {
+      const h = await axios.get(`${API}/health`);
+      setHealth(h.data);
+    } catch (e) {
+      setHealth(null);
+    }
+  }, []);
+
   useEffect(() => {
+    loadHealth();
     loadAll();
-  }, [loadAll]);
+  }, [loadHealth, loadAll]);
 
   const runSync = async () => {
     setSyncing(true);
@@ -125,6 +142,15 @@ export default function EnergyAudit() {
           <div>
             <h1 className="text-2xl font-bold text-slate-900">LOGITRAK — Énergie · Socle d&apos;audit</h1>
             <p className="text-sm text-slate-500">Identité véhicule/tracker · Mapping VIN · Capability map · Anomalies (données réelles Navixy, lecture seule)</p>
+            {health && (
+              <p className="text-xs mt-1" data-testid="health-line">
+                <span className="text-slate-500">Service:</span> <span className="font-medium text-emerald-700">{health.status}</span>
+                <span className="text-slate-400"> · contrat {health.contract_version} · </span>
+                <span className={health.auth_required ? "text-emerald-700" : "text-rose-600"}>
+                  {health.auth_required ? "auth Bearer activée" : "auth non configurée"}
+                </span>
+              </p>
+            )}
           </div>
           <button
             data-testid="energy-sync-btn"

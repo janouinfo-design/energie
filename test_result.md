@@ -273,6 +273,19 @@ backend:
         agent: "testing"
         comment: "Tenant isolation verified for Phase 2.1 endpoints. GET /api/energy/mapping-proposals?tenant_id=paas_NONE returns empty proposals (no leak). GET /api/energy/ev-feasibility?tenant_id=paas_NONE returns empty assessments (no leak). Tenant isolation working correctly across all new endpoints."
 
+  - task: "Backend-to-Backend Bearer Authentication (Phase 2.2)"
+    implemented: true
+    working: true
+    file: "/app/backend/energy/auth.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Comprehensive Bearer authentication testing completed. ALL 35 tests PASSED (100% success rate). A) Public health endpoint: accessible without auth, returns status=ok/auth_required=true/stale_hours=48, NO secret exposure verified. B) Bearer auth enforcement on /api/energy/mapping: 401 for no header/wrong token/wrong scheme (Basic), 200 with valid token returning 12 mapping entries. C) All 9 data routes require auth: anomalies, readiness, mapping-proposals, ev-feasibility, mapping-changes, sync-runs, trackers/{id}/metrics, trackers/{id}/capabilities, sync - all return 401 without token and 200 with valid token. D) Regression tests passed: mapping has 12 entries with tracker 781479 (confidence=HIGH, obd_vin=WAUZZZ8V0JA152970), fuel_level (MEASURED/NAVIXY_OBD, STALE, value=30.66), board_voltage (UNAVAILABLE, value=null not 0), all EV metrics UNAVAILABLE, readiness (NOT_READY_FOR_A_E, ev_energy_coverage=0.0). E) Tenant isolation verified: paas_DOESNOTEXIST returns empty mapping (no leak), tracker 781479 with wrong tenant returns 404 (no cross-tenant leak), invalid tracker 99999999 returns 404. F) Secret hygiene verified: health endpoint, 401 responses, and authenticated responses do NOT expose token value. Backend-to-backend authentication is production-ready."
+
+
 frontend:
   - task: "EnergyAudit Component - Page Load & Header"
     implemented: true
@@ -552,13 +565,13 @@ frontend:
 
 metadata:
   created_by: "testing_agent"
-  version: "1.2"
-  test_sequence: 4
+  version: "1.3"
+  test_sequence: 5
   run_ui: true
 
 test_plan:
   current_focus:
-    - "Phase 2.1 UI testing completed - all new sections working"
+    - "Phase 2.2 Backend-to-Backend Bearer Authentication testing completed - all auth flows working"
   stuck_tasks: []
   test_all: true
   test_priority: "high_first"
@@ -572,3 +585,5 @@ agent_communication:
     message: "Phase 2.1 backend testing completed. All 71 tests passed (14 test scenarios). New endpoints tested: mapping-proposals (14 proposals, all INSUFFICIENT_DATA classification, no label-based proposals), ev-feasibility (device families fmc130:6, fmb003:4, phone:2, ev_collectable_now=0, correct channel classifications), mapping-changes (6 NEW_ASSOCIATION events, idempotency verified), readiness (NOT_READY_FOR_A_E, pct_trackers_associated=25%, all KPIs present). Tenant isolation verified for all new endpoints. REGRESSION PASSED: All Phase 2 endpoints still working correctly. No issues found. Backend Phase 2.1 is production-ready."
   - agent: "testing"
     message: "Phase 2.1 UI testing completed. ALL 9 test steps PASSED. New UI sections tested: (1) Readiness banner with NOT_READY_FOR_A_E and all KPIs (trackers 25%, vehicles 37.5%, VIN 40%, thermal 25%, EV 0%, stale 7, blocking 0), (2) Tab navigation with 4 tabs (mapping, proposals, ev, changes), (3) Proposals table with 14 rows, INSUFFICIENT_DATA badges, evidence text, footer 'Aucune écriture Navixy', (4) EV feasibility with conclusion, device families (fmc130:6, fmb003:4, phone:2), SoC channels (NEEDS_HARDWARE, NOT_VERIFIABLE, NOT_SUPPORTED), (5) Changes table with 6 NEW_ASSOCIATION rows, (6) Mapping table with 12 rows, detail panel with HORODATAGE column, (7) Responsive design at 390x844, (8) No console errors. CRITICAL RULE VERIFIED: NO numeric 0 for missing data - all show '—', 'absent', 'aucune', 'N/A'. Phase 2.1 UI is production-ready."
+  - agent: "testing"
+    message: "Phase 2.2 Backend-to-Backend Bearer Authentication testing completed. ALL 35 tests PASSED (100% success rate). Comprehensive test coverage: (A) Public health endpoint accessible without auth, no secret exposure, (B) Bearer auth enforcement on /api/energy/mapping (401 for missing/wrong/malformed tokens, 200 with valid token), (C) All 9 data routes require auth (anomalies, readiness, mapping-proposals, ev-feasibility, mapping-changes, sync-runs, trackers/metrics, trackers/capabilities, sync), (D) Regression tests passed (mapping 12 entries, tracker 781479 details, fuel_level STALE/30.66, board_voltage UNAVAILABLE/null, EV metrics UNAVAILABLE, readiness NOT_READY_FOR_A_E), (E) Tenant isolation verified (empty mapping for non-existent tenant, 404 for cross-tenant access, 404 for invalid tracker), (F) Secret hygiene verified (no token leakage in health/401/authenticated responses). Backend-to-backend authentication is production-ready. Real Navixy integration continues to work correctly with auth layer."

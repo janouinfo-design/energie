@@ -12,14 +12,18 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
+from .auth import require_bearer
 from .service import EnergyService
 
 
 def build_energy_router(db) -> APIRouter:
     router = APIRouter(prefix="/energy", tags=["energy"])
     service = EnergyService(db)
+    # All telematics-data routes require backend->backend Bearer auth.
+    # `health` is intentionally public (no secret exposed).
+    secured = [Depends(require_bearer)]
 
     async def _resolve_tenant(tenant_id: Optional[str]) -> str:
         if tenant_id:
@@ -34,23 +38,26 @@ def build_energy_router(db) -> APIRouter:
 
     @router.get("/health")
     async def health():
+        # Public: no secret exposed. auth_required flags that data routes need Bearer.
         return {
             "status": "ok",
+            "contract_version": "v1-foundation",
             "navixy_configured": service.client.configured,
+            "auth_required": bool(__import__("os").environ.get("ENERGY_API_TOKEN")),
             "stale_hours": __import__("os").environ.get("ENERGY_STALE_HOURS", "48"),
         }
 
-    @router.post("/sync")
+    @router.post("/sync", dependencies=secured)
     async def sync(tenant_id: Optional[str] = Query(None)):
         summary = await service.run_sync(tenant_override=tenant_id)
         return summary.model_dump()
 
-    @router.get("/mapping")
+    @router.get("/mapping", dependencies=secured)
     async def mapping(tenant_id: Optional[str] = Query(None)):
         tid = await _resolve_tenant(tenant_id)
         return {"tenant_id": tid, "mapping": await service.get_mapping(tid)}
 
-    @router.get("/anomalies")
+    @router.get("/anomalies", dependencies=secured)
     async def anomalies(tenant_id: Optional[str] = Query(None)):
         tid = await _resolve_tenant(tenant_id)
         data = await service.get_anomalies(tid)
@@ -60,7 +67,7 @@ def build_energy_router(db) -> APIRouter:
             counts[a["type"]] = counts.get(a["type"], 0) + 1
         return {"tenant_id": tid, "counts": counts, "anomalies": data}
 
-    @router.get("/trackers/{tracker_id}/capabilities")
+    @router.get("/trackers/{tracker_id}/capabilities", dependencies=secured)
     async def capabilities(tracker_id: int, tenant_id: Optional[str] = Query(None)):
         tid = await _resolve_tenant(tenant_id)
         doc = await service.get_capabilities(tid, tracker_id)
@@ -68,7 +75,7 @@ def build_energy_router(db) -> APIRouter:
             raise HTTPException(status_code=404, detail="Tracker capabilities not found")
         return doc
 
-    @router.get("/trackers/{tracker_id}/metrics")
+    @router.get("/trackers/{tracker_id}/metrics", dependencies=secured)
     async def metrics(tracker_id: int, tenant_id: Optional[str] = Query(None)):
         tid = await _resolve_tenant(tenant_id)
         doc = await service.get_metrics(tid, tracker_id)
@@ -76,12 +83,12 @@ def build_energy_router(db) -> APIRouter:
             raise HTTPException(status_code=404, detail="Tracker metrics not found")
         return doc
 
-    @router.get("/sync-runs")
+    @router.get("/sync-runs", dependencies=secured)
     async def sync_runs(tenant_id: Optional[str] = Query(None)):
         tid = await _resolve_tenant(tenant_id)
         return {"tenant_id": tid, "runs": await service.list_sync_runs(tid)}
 
-    @router.get("/mapping-proposals")
+    @router.get("/mapping-proposals", dependencies=secured)
     async def mapping_proposals(tenant_id: Optional[str] = Query(None)):
         tid = await _resolve_tenant(tenant_id)
         data = await service.get_proposals(tid)
@@ -90,17 +97,17 @@ def build_energy_router(db) -> APIRouter:
             counts[p["classification"]] = counts.get(p["classification"], 0) + 1
         return {"tenant_id": tid, "counts": counts, "proposals": data}
 
-    @router.get("/ev-feasibility")
+    @router.get("/ev-feasibility", dependencies=secured)
     async def ev_feasibility(tenant_id: Optional[str] = Query(None)):
         tid = await _resolve_tenant(tenant_id)
         return {"tenant_id": tid, **(await service.get_ev_feasibility(tid))}
 
-    @router.get("/mapping-changes")
+    @router.get("/mapping-changes", dependencies=secured)
     async def mapping_changes(tenant_id: Optional[str] = Query(None)):
         tid = await _resolve_tenant(tenant_id)
         return {"tenant_id": tid, "changes": await service.get_mapping_changes(tid)}
 
-    @router.get("/readiness")
+    @router.get("/readiness", dependencies=secured)
     async def readiness(tenant_id: Optional[str] = Query(None)):
         tid = await _resolve_tenant(tenant_id)
         return await service.get_readiness(tid)
