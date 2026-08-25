@@ -158,3 +158,15 @@ IMPORTANT : les 4 routes MÉTIER v1 (health v1, trips/energy:batch, fleet/summar
 - UI d'audit : dégradation gracieuse en 401 (les routes de données exigent Bearer ; le secret ne doit pas être en frontend → l'UI n'appelle plus directement les données, health public reste affiché).
 
 Fichiers Phase 2.2 : backend/energy/auth.py ; energy/routes.py (dependencies=secured + health enrichi) ; backend/.env (+ENERGY_API_TOKEN) ; .gitignore ; frontend/src/components/EnergyAudit.js (health + gestion 401).
+
+## 13. PHASE 3 — API MÉTIER v1 (contrat Journal) — IMPLÉMENTÉE & TESTÉE (20/20)
+Les 4 routes validées sont implémentées au-dessus du socle (réutilisation d'EnergyService, aucun 2e client Navixy ; les routes v1 servent le dernier snapshot synchronisé → pas d'appel Navixy live par requête → pas de N+1, réponses <0,25 s ≪ timeout Journal 10 s).
+- `GET /api/energy/v1/health` — public, sans tenant, sans secret ; {status, contract_version:"v1", service, navixy_configured}.
+- `GET /api/energy/v1/vehicles/{ref}/summary` — Bearer + tenant (query `tenant_id` ou `X-Tenant-Id`). `{ref}`=vehicle_id opaque Journal, résolu via identifiants prouvés (tracker_id puis Navixy vehicle_id) ; sinon 404 mapping INVALID. Jamais par nom/plaque/modèle.
+- `GET /api/energy/v1/fleet/summary` — Bearer + tenant query. Agrégats réels uniquement (powertrain UNKNOWN=12, qualité fuel {AVAILABLE/STALE/UNAVAILABLE}, EV explicitement UNAVAILABLE) ; L et kWh jamais fusionnés ; absence ≠ 0.
+- `POST /api/energy/v1/trips/energy:batch` — Bearer + tenant body (`tenant_id`) ou `X-Tenant-Id` ; limite 100 (>100 → 413) ; résultats indépendants par trajet (partiel supporté) ; énergie par trajet honnêtement UNAVAILABLE/value:null (aucune conso fabriquée) ; blocs fuel_l et electric_kwh séparés (PHEV-ready).
+- Enveloppe de sortie Journal : availability ∈ {AVAILABLE,UNAVAILABLE,STALE} (ERROR interne → UNAVAILABLE) ; measurement_type ∈ {MEASURED,ESTIMATED,REFERENCE} ou null (jamais "NONE") ; source tracée ou null ; null≠0 ; STALE jamais promu.
+- Tenant : X-Tenant-Id accepté ; conflit query/header → 400 ; tenant manquant sur route données → 400.
+- Tests (backend agent 20/20) : contrat 4 routes, auth (401/scheme), tenant/IDOR (404/400/mismatch/cross-tenant batch), limites (413), partiel, null≠0, STALE, UNKNOWN, no "NONE"/"ERROR", REAL NAVIXY 12/12 (<10s), régression socle.
+Fichiers Phase 3 : backend/energy/{v1_contract.py, v1_service.py, v1_routes.py} ; server.py (montage v1).
+NON RÉALISÉ (assumé) : énergie par trajet MEASURED/ESTIMATED (historique par fenêtre non disponible via télémétrie temps réel → nécessiterait les rapports Navixy async ou capteurs additionnels) → renvoyé UNAVAILABLE sans fabrication.
